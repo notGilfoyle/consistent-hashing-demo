@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consistent Hashing Demo</title>
+</head>
+<body>
+<div id="consistent-hashing-app">
+  <style>
+    #consistent-hashing-app {
+      --bg: #f7f7f2;
+      --panel: #ffffff;
+      --ink: #202124;
+      --muted: #5f6368;
+      --line: #d6d9ce;
+      --accent: #2f6f73;
+      --accent-2: #9b5de5;
+      --accent-3: #f15bb5;
+      --accent-4: #00bbf9;
+      --accent-5: #f4a261;
+      --danger: #b23a48;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    #consistent-hashing-app * {
+      box-sizing: border-box;
+    }
+
+    .app-shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 2.8vw, 2.5rem);
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+
+    .subtle {
+      color: var(--muted);
+      margin: 7px 0 0;
+      max-width: 780px;
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button, select, input[type="range"] {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 8px;
+      min-height: 38px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    button.danger {
+      color: var(--danger);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.2fr) minmax(280px, 0.8fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 40px rgba(32, 33, 36, 0.08);
+      overflow: hidden;
+    }
+
+    .ring-panel {
+      min-height: 650px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .panel-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .panel-title {
+      font-weight: 700;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 12px 16px 0;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: color-mix(in srgb, var(--bg), var(--panel) 45%);
+      min-width: 0;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-bottom: 4px;
+    }
+
+    .metric strong {
+      font-size: 1.25rem;
+    }
+
+    .ring-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+      padding: 20px 16px 28px;
+      min-height: 520px;
+    }
+
+    svg {
+      width: min(100%, 560px);
+      height: auto;
+      overflow: visible;
+    }
+
+    .arc {
+      fill: none;
+      stroke-width: 18;
+      stroke-linecap: butt;
+      opacity: 0.68;
+    }
+
+    .ring-base {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 18;
+    }
+
+    .vnodes circle {
+      stroke: var(--panel);
+      stroke-width: 3;
+    }
+
+    .keys circle {
+      fill: var(--ink);
+      stroke: var(--panel);
+      stroke-width: 2;
+    }
+
+    .keys text,
+    .vnodes text {
+      fill: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: var(--panel);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--dot);
+    }
+
+    .side {
+      display: grid;
+      gap: 18px;
+    }
+
+    .section {
+      padding: 16px;
+    }
+
+    .server-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .server {
+      display: grid;
+      grid-template-columns: 16px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .server strong {
+      display: block;
+    }
+
+    .server small {
+      color: var(--muted);
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .range-row label {
+      color: var(--muted);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .key-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    .key-table th,
+    .key-table td {
+      text-align: left;
+      padding: 9px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+
+    .key-table th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      white-space: nowrap;
+    }
+
+    .moved {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .stable {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    @media (max-width: 860px) {
+      #consistent-hashing-app {
+        padding: 16px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .ring-panel {
+        min-height: auto;
+      }
+
+      .metric-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .panel-head,
+      .topbar {
+        align-items: stretch;
+      }
+
+      .controls {
+        width: 100%;
+      }
+
+      .controls button {
+        flex: 1 1 135px;
+      }
+
+      .key-table {
+        font-size: 0.82rem;
+      }
+
+      .key-table th,
+      .key-table td {
+        padding: 8px 5px;
+      }
+    }
+  </style>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Consistent Hashing Ring</h1>
+        <p class="subtle">Keys move clockwise to the next virtual node. Add or remove a server and compare how little ownership changes.</p>
+      </div>
+      <div class="controls" aria-label="Ring controls">
+        <button class="primary" id="add-server" type="button">Add server</button>
+        <button class="danger" id="remove-server" type="button">Remove server</button>
+        <button id="shuffle-keys" type="button">Shuffle keys</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel ring-panel">
+        <div class="panel-head">
+          <div class="panel-title">Hash space: 0 to 359</div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><span>Servers</span><strong id="server-count">0</strong></div>
+          <div class="metric"><span>Virtual nodes</span><strong id="vnode-count">0</strong></div>
+          <div class="metric"><span>Keys moved</span><strong id="moved-count">0</strong></div>
+        </div>
+        <div class="ring-wrap">
+          <svg id="ring" viewBox="-260 -260 520 520" role="img" aria-label="Consistent hashing ring"></svg>
+        </div>
+      </article>
+
+      <aside class="side">
+        <article class="panel section">
+          <div class="panel-title">Servers</div>
+          <div class="range-row">
+            <label for="replicas">Virtual nodes per server</label>
+            <strong id="replicas-value">4</strong>
+          </div>
+          <input id="replicas" type="range" min="1" max="10" value="4">
+          <div class="server-list" id="server-list" style="margin-top: 14px;"></div>
+        </article>
+
+        <article class="panel section">
+          <div class="panel-title">Sample keys</div>
+          <p class="note" id="change-note" style="margin-top: 6px;"></p>
+          <table class="key-table" aria-label="Key ownership table">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Hash</th>
+                <th>Server</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+            <tbody id="key-body"></tbody>
+          </table>
+        </article>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const app = document.getElementById("consistent-hashing-app");
+      const svg = app.querySelector("#ring");
+      const serverList = app.querySelector("#server-list");
+      const keyBody = app.querySelector("#key-body");
+      const legend = app.querySelector("#legend");
+      const replicas = app.querySelector("#replicas");
+      const replicasValue = app.querySelector("#replicas-value");
+      const serverCount = app.querySelector("#server-count");
+      const vnodeCount = app.querySelector("#vnode-count");
+      const movedCount = app.querySelector("#moved-count");
+      const changeNote = app.querySelector("#change-note");
+      const colors = ["#2f6f73", "#9b5de5", "#f15bb5", "#00a6d6", "#e28d2f", "#6a994e"];
+      const keyPool = ["user:104", "cart:852", "photo:207", "feed:981", "order:430", "session:718", "post:155", "msg:622", "like:044", "profile:390", "invoice:511", "search:076"];
+
+      let servers = [
+        { id: "A", name: "Cache A" },
+        { id: "B", name: "Cache B" },
+        { id: "C", name: "Cache C" }
+      ];
+      let keys = keyPool.slice(0, 8);
+      let previousOwners = new Map();
+
+      function hash(value) {
+        let h = 2166136261;
+        for (let i = 0; i < value.length; i += 1) {
+          h ^= value.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return (h >>> 0) % 360;
+      }
+
+      function polar(angle, radius) {
+        const radians = (angle - 90) * Math.PI / 180;
+        return {
+          x: Math.cos(radians) * radius,
+          y: Math.sin(radians) * radius
+        };
+      }
+
+      function arcPath(start, end, radius) {
+        const gap = 0.9;
+        const adjustedStart = start + gap;
+        const adjustedEnd = end - gap;
+        const sweep = ((adjustedEnd - adjustedStart + 360) % 360) || 359.99;
+        const from = polar(adjustedStart, radius);
+        const to = polar(adjustedStart + sweep, radius);
+        const large = sweep > 180 ? 1 : 0;
+        return `M ${from.x.toFixed(3)} ${from.y.toFixed(3)} A ${radius} ${radius} 0 ${large} 1 ${to.x.toFixed(3)} ${to.y.toFixed(3)}`;
+      }
+
+      function buildVnodes() {
+        const count = Number(replicas.value);
+        return servers.flatMap((server, serverIndex) => {
+          return Array.from({ length: count }, (_, replicaIndex) => ({
+            server,
+            angle: hash(`${server.id}:${replicaIndex}`),
+            replica: replicaIndex + 1,
+            color: colors[serverIndex % colors.length]
+          }));
+        }).sort((a, b) => a.angle - b.angle);
+      }
+
+      function ownerFor(hashValue, vnodes) {
+        if (!vnodes.length) return null;
+        return vnodes.find((node) => node.angle >= hashValue) || vnodes[0];
+      }
+
+      function serverColor(serverId) {
+        const index = servers.findIndex((server) => server.id === serverId);
+        return colors[Math.max(index, 0) % colors.length];
+      }
+
+      function setAttrs(el, attrs) {
+        Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+      }
+
+      function render() {
+        const vnodes = buildVnodes();
+        const keyRows = keys.map((key) => {
+          const keyHash = hash(key);
+          const owner = ownerFor(keyHash, vnodes);
+          const previous = previousOwners.get(key);
+          return {
+            key,
+            hash: keyHash,
+            owner,
+            moved: previous && owner && previous !== owner.server.id
+          };
+        });
+
+        svg.replaceChildren();
+        const base = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        setAttrs(base, { class: "ring-base", cx: 0, cy: 0, r: 178 });
+        svg.appendChild(base);
+
+        if (vnodes.length) {
+          vnodes.forEach((node, index) => {
+            const next = vnodes[(index + 1) % vnodes.length];
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            setAttrs(path, {
+              class: "arc",
+              d: arcPath(node.angle, next.angle, 178),
+              stroke: node.color
+            });
+            svg.appendChild(path);
+          });
+        }
+
+        const vnodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        vnodeGroup.setAttribute("class", "vnodes");
+        vnodes.forEach((node) => {
+          const point = polar(node.angle, 178);
+          const labelPoint = polar(node.angle, 213);
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          setAttrs(circle, { cx: point.x, cy: point.y, r: 8, fill: node.color });
+          vnodeGroup.appendChild(circle);
+
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          setAttrs(text, { x: labelPoint.x, y: labelPoint.y, "text-anchor": "middle", "dominant-baseline": "middle" });
+          text.textContent = `${node.server.id}${node.replica}`;
+          vnodeGroup.appendChild(text);
+        });
+        svg.appendChild(vnodeGroup);
+
+        const keyGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        keyGroup.setAttribute("class", "keys");
+        keyRows.forEach((row, index) => {
+          const point = polar(row.hash, 136);
+          const labelPoint = polar(row.hash, 111);
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          setAttrs(circle, { cx: point.x, cy: point.y, r: row.moved ? 7 : 5, fill: row.moved ? "#b23a48" : "#202124" });
+          keyGroup.appendChild(circle);
+
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          setAttrs(text, { x: labelPoint.x, y: labelPoint.y, "text-anchor": "middle", "dominant-baseline": "middle" });
+          text.textContent = `K${index + 1}`;
+          keyGroup.appendChild(text);
+        });
+        svg.appendChild(keyGroup);
+
+        legend.innerHTML = servers.map((server) => (
+          `<span class="legend-item"><span class="dot" style="--dot: ${serverColor(server.id)}"></span>${server.name}</span>`
+        )).join("");
+
+        serverList.innerHTML = servers.map((server) => {
+          const owned = keyRows.filter((row) => row.owner && row.owner.server.id === server.id).length;
+          return `<div class="server">
+            <span class="dot" style="--dot: ${serverColor(server.id)}"></span>
+            <span><strong>${server.name}</strong><small>${owned} sample keys owned</small></span>
+            <span class="pill">${replicas.value} vnodes</span>
+          </div>`;
+        }).join("");
+
+        keyBody.innerHTML = keyRows.map((row, index) => {
+          const ownerId = row.owner ? row.owner.server.id : "-";
+          const ownerName = row.owner ? row.owner.server.name : "No server";
+          return `<tr>
+            <td>K${index + 1}<br><small>${row.key}</small></td>
+            <td>${row.hash}</td>
+            <td><span class="pill"><span class="dot" style="--dot: ${serverColor(ownerId)}"></span>${ownerName}</span></td>
+            <td class="${row.moved ? "moved" : "stable"}">${row.moved ? "Moved" : "Stable"}</td>
+          </tr>`;
+        }).join("");
+
+        const moved = keyRows.filter((row) => row.moved).length;
+        serverCount.textContent = servers.length;
+        vnodeCount.textContent = vnodes.length;
+        movedCount.textContent = `${moved}/${keys.length}`;
+        replicasValue.textContent = replicas.value;
+        changeNote.textContent = moved
+          ? `${moved} key${moved === 1 ? "" : "s"} changed owner after the last topology update.`
+          : "No sample keys changed owner after the last topology update.";
+
+        previousOwners = new Map(keyRows.map((row) => [row.key, row.owner ? row.owner.server.id : null]));
+      }
+
+      function rememberCurrentOwners() {
+        const vnodes = buildVnodes();
+        previousOwners = new Map(keys.map((key) => {
+          const owner = ownerFor(hash(key), vnodes);
+          return [key, owner ? owner.server.id : null];
+        }));
+      }
+
+      app.querySelector("#add-server").addEventListener("click", () => {
+        rememberCurrentOwners();
+        const nextId = String.fromCharCode(65 + servers.length);
+        servers.push({ id: nextId, name: `Cache ${nextId}` });
+        render();
+      });
+
+      app.querySelector("#remove-server").addEventListener("click", () => {
+        if (servers.length <= 1) return;
+        rememberCurrentOwners();
+        servers.pop();
+        render();
+      });
+
+      app.querySelector("#shuffle-keys").addEventListener("click", () => {
+        rememberCurrentOwners();
+        const rotated = keys.slice(1).concat(keys[0]);
+        keys = rotated.map((key, index) => index % 3 === 0 ? keyPool[(keyPool.indexOf(key) + 4) % keyPool.length] : key);
+        render();
+      });
+
+      replicas.addEventListener("input", () => {
+        rememberCurrentOwners();
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>
