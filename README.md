@@ -106,4 +106,4 @@ To publish this as a simple GitHub Pages project:
 3. In the repository settings, enable GitHub Pages.
 4. Choose the branch and folder where `index.html` lives.
 
-GitHub Pages will serve the demo as a static website.
+
